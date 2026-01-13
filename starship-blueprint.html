@@ -47,11 +47,10 @@
             transform: scaleX(-1);
         }
 
-        /* Hand cursor circles */
         .hand-cursor {
             position: fixed;
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
             border: 3px solid #00ff66;
             border-radius: 50%;
             pointer-events: none;
@@ -65,8 +64,15 @@
             opacity: 1;
         }
 
+        .hand-cursor.left {
+            border-color: #00ff66;
+        }
+
+        .hand-cursor.right {
+            border-color: #66ffaa;
+        }
+
         .hand-cursor.pinching {
-            border-color: #00ffaa;
             box-shadow: 0 0 30px rgba(0, 255, 170, 0.6);
             transform: translate(-50%, -50%) scale(0.7);
         }
@@ -76,15 +82,41 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 8px;
-            height: 8px;
-            background: #00ff66;
+            width: 6px;
+            height: 6px;
+            background: currentColor;
             border-radius: 50%;
             transform: translate(-50%, -50%);
         }
 
-        .hand-cursor.pinching::after {
-            background: #00ffaa;
+        .hand-cursor.left::after { background: #00ff66; }
+        .hand-cursor.right::after { background: #66ffaa; }
+
+        #part-label {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00ffaa;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(0, 255, 170, 0.8);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        #part-label.visible {
+            opacity: 1;
+        }
+
+        #part-label .description {
+            font-size: 14px;
+            font-weight: normal;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
         }
 
         #instructions {
@@ -97,6 +129,7 @@
             padding: 20px;
             border-radius: 12px;
             font-size: 14px;
+            max-width: 280px;
         }
 
         #instructions h2 {
@@ -135,30 +168,56 @@
             to { transform: rotate(360deg); }
         }
 
-        #zoom-indicator {
+        #mode-indicator {
             position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
             color: #00ff66;
-            font-size: 16px;
-            opacity: 0;
-            transition: opacity 0.3s;
+            font-size: 18px;
+            font-weight: bold;
             z-index: 100;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px 20px;
-            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 25px;
+            border-radius: 25px;
+            border: 2px solid rgba(0, 255, 102, 0.3);
         }
 
-        #zoom-indicator.visible {
-            opacity: 1;
+        #explode-meter {
+            position: fixed;
+            top: 20px;
+            right: 240px;
+            width: 150px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            z-index: 100;
+        }
+
+        #explode-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00ff66, #00ffaa);
+            transition: width 0.1s;
+        }
+
+        #explode-label {
+            position: fixed;
+            top: 35px;
+            right: 240px;
+            width: 150px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 11px;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
     <div id="loading" class="loading">
         <div class="loading-spinner"></div>
-        <div>Loading...</div>
+        <div>Loading Starship...</div>
     </div>
 
     <div id="container"></div>
@@ -166,16 +225,21 @@
     <video id="webcam" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
 
-    <div class="hand-cursor" id="cursor-left"></div>
-    <div class="hand-cursor" id="cursor-right"></div>
+    <div class="hand-cursor left" id="cursor-left"></div>
+    <div class="hand-cursor right" id="cursor-right"></div>
 
-    <div id="zoom-indicator">ZOOM</div>
+    <div id="mode-indicator">ASSEMBLED</div>
+    <div id="part-label"><span class="name"></span><div class="description"></div></div>
+
+    <div id="explode-meter"><div id="explode-fill"></div></div>
+    <div id="explode-label">SPREAD TO OPEN</div>
 
     <div id="instructions">
         <h2>🚀 Starship Blueprint</h2>
-        <p>🤏 <strong>Pinch</strong> to grab</p>
-        <p>✋ <strong>Move</strong> while pinching to spin</p>
-        <p>🤏🤏 <strong>Two hands</strong> pinch + spread to zoom</p>
+        <p>🤏 <strong>Pinch + drag</strong> to rotate</p>
+        <p>🤏🤏 <strong>Two hands pinch</strong> + move to zoom</p>
+        <p>✋✋ <strong>Spread hands apart</strong> to explode view</p>
+        <p>👆 <strong>Point</strong> at parts to see names</p>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -184,136 +248,305 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
     <script>
-        // Three.js
-        let scene, camera, renderer, rocketGroup;
+        // Three.js scene
+        let scene, camera, renderer, starshipGroup;
         let targetRotX = 0, targetRotY = 0;
         let currentRotX = 0, currentRotY = 0;
-        let targetZoom = 6, currentZoom = 6;
+        let targetZoom = 8, currentZoom = 8;
+        let explodeAmount = 0, targetExplode = 0;
 
-        // Hand state
+        // Parts with their explode positions and info
+        const parts = [];
+        const partInfo = {
+            'Nose Cone': 'Aerodynamic tip with header tanks for landing propellant',
+            'Payload Bay': 'Pressurized cargo area - can hold 100+ tons to orbit',
+            'Forward Flaps': 'Control surfaces for atmospheric re-entry steering',
+            'LOX Tank': 'Liquid Oxygen tank - 1,200 cubic meters capacity',
+            'Common Dome': 'Shared bulkhead between LOX and methane tanks',
+            'Methane Tank': 'Liquid Methane fuel tank - sub-cooled to -162°C',
+            'Aft Flaps': 'Rear control surfaces for belly-flop maneuver',
+            'Thrust Structure': 'Reinforced structure supporting engine thrust loads',
+            'Raptor Engines': '6 Raptor engines - 3 sea-level, 3 vacuum optimized',
+            'Heat Shield': 'Hexagonal tiles protecting from 1,400°C re-entry heat',
+            'Avionics Bay': 'Flight computers, sensors, and communication systems',
+            'Header Tank': 'Small tanks in nose for landing fuel reserves'
+        };
+
+        // Hand tracking state
         let hands = { left: null, right: null };
         let lastPinchPos = null;
         let lastTwoHandDist = null;
+        let lastSpreadDist = null;
+        let hoveredPart = null;
 
-        function createHoloMaterial(color = 0x00aaff) {
-            return new THREE.MeshBasicMaterial({
+        function createHoloMaterial(color = 0x00aaff, opacity = 0.6) {
+            return new THREE.MeshPhongMaterial({
                 color: color,
-                wireframe: true,
                 transparent: true,
-                opacity: 0.7
+                opacity: opacity,
+                side: THREE.DoubleSide,
+                emissive: color,
+                emissiveIntensity: 0.1
             });
+        }
+
+        function createWireMaterial(color = 0x00ffff) {
+            return new THREE.LineBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.4
+            });
+        }
+
+        function addPart(mesh, name, explodeY, explodeX = 0, explodeZ = 0) {
+            mesh.userData = {
+                name: name,
+                explodeY: explodeY,
+                explodeX: explodeX,
+                explodeZ: explodeZ,
+                originalY: mesh.position.y,
+                originalX: mesh.position.x,
+                originalZ: mesh.position.z
+            };
+            parts.push(mesh);
+            starshipGroup.add(mesh);
+
+            // Add wireframe
+            if (mesh.geometry) {
+                const edges = new THREE.EdgesGeometry(mesh.geometry);
+                const wire = new THREE.LineSegments(edges, createWireMaterial());
+                wire.position.copy(mesh.position);
+                wire.rotation.copy(mesh.rotation);
+                wire.userData = { parentPart: mesh };
+                starshipGroup.add(wire);
+            }
         }
 
         function initScene() {
             scene = new THREE.Scene();
 
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.z = 6;
-            camera.position.y = 1;
+            camera.position.z = 8;
+            camera.position.y = 2;
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setClearColor(0x0a0a0f);
             document.getElementById('container').appendChild(renderer.domElement);
 
+            // Lighting
+            const ambient = new THREE.AmbientLight(0x404060, 0.5);
+            scene.add(ambient);
+
+            const light1 = new THREE.DirectionalLight(0x00ffaa, 0.8);
+            light1.position.set(5, 10, 5);
+            scene.add(light1);
+
+            const light2 = new THREE.DirectionalLight(0x0066ff, 0.4);
+            light2.position.set(-5, -5, 5);
+            scene.add(light2);
+
             // Stars
             const starGeo = new THREE.BufferGeometry();
-            const starPos = new Float32Array(2000 * 3);
-            for (let i = 0; i < 2000 * 3; i += 3) {
-                starPos[i] = (Math.random() - 0.5) * 100;
-                starPos[i + 1] = (Math.random() - 0.5) * 100;
-                starPos[i + 2] = (Math.random() - 0.5) * 100 - 20;
+            const starPos = new Float32Array(3000 * 3);
+            for (let i = 0; i < 3000 * 3; i += 3) {
+                starPos[i] = (Math.random() - 0.5) * 150;
+                starPos[i + 1] = (Math.random() - 0.5) * 150;
+                starPos[i + 2] = (Math.random() - 0.5) * 150 - 30;
             }
             starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-            const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x4488ff, size: 0.15 }));
+            const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x4488ff, size: 0.12 }));
             scene.add(stars);
 
-            // Rocket group
-            rocketGroup = new THREE.Group();
+            // Starship group
+            starshipGroup = new THREE.Group();
 
-            // Nose cone
-            const nose = new THREE.Mesh(
-                new THREE.ConeGeometry(0.5, 1.5, 12),
-                createHoloMaterial(0x00ffaa)
+            // === NOSE CONE ===
+            const noseGeo = new THREE.ConeGeometry(0.45, 1.8, 24);
+            const nose = new THREE.Mesh(noseGeo, createHoloMaterial(0x00ffcc, 0.7));
+            nose.position.y = 5.4;
+            addPart(nose, 'Nose Cone', 2.5);
+
+            // Header tanks inside nose (visible when exploded)
+            const headerTank1 = new THREE.Mesh(
+                new THREE.SphereGeometry(0.15, 16, 16),
+                createHoloMaterial(0xff6600, 0.6)
             );
-            nose.position.y = 4;
-            rocketGroup.add(nose);
+            headerTank1.position.set(0.1, 5.0, 0);
+            addPart(headerTank1, 'Header Tank', 2.3, 0.5);
 
-            // Upper body
-            const upper = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.5, 0.5, 2, 12),
-                createHoloMaterial()
+            const headerTank2 = new THREE.Mesh(
+                new THREE.SphereGeometry(0.15, 16, 16),
+                createHoloMaterial(0x00aaff, 0.6)
             );
-            upper.position.y = 2.5;
-            rocketGroup.add(upper);
+            headerTank2.position.set(-0.1, 5.0, 0);
+            addPart(headerTank2, 'Header Tank', 2.3, -0.5);
 
-            // Middle tank
-            const middle = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.5, 0.5, 2.5, 12),
-                createHoloMaterial()
+            // === PAYLOAD BAY ===
+            const payloadGeo = new THREE.CylinderGeometry(0.45, 0.45, 2.2, 24);
+            const payload = new THREE.Mesh(payloadGeo, createHoloMaterial(0x00aaff, 0.5));
+            payload.position.y = 4.0;
+            addPart(payload, 'Payload Bay', 1.5);
+
+            // Cargo inside payload bay
+            const satellite = new THREE.Mesh(
+                new THREE.BoxGeometry(0.25, 0.25, 0.25),
+                createHoloMaterial(0xffaa00, 0.7)
             );
-            middle.position.y = 0.5;
-            rocketGroup.add(middle);
+            satellite.position.set(0, 4.2, 0);
+            addPart(satellite, 'Avionics Bay', 1.5, 0.8);
 
-            // Lower body
-            const lower = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.5, 0.6, 1.5, 12),
-                createHoloMaterial()
+            // Solar panels (folded)
+            const panel1 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.02, 0.4, 0.2),
+                createHoloMaterial(0x0066ff, 0.7)
             );
-            lower.position.y = -1.25;
-            rocketGroup.add(lower);
+            panel1.position.set(0.2, 4.2, 0);
+            addPart(panel1, 'Avionics Bay', 1.5, 1.2);
 
-            // Engine section
-            const engine = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.6, 0.55, 0.8, 12),
-                createHoloMaterial(0x00ffaa)
+            // === FORWARD FLAPS ===
+            const flapGeo = new THREE.BoxGeometry(0.5, 0.8, 0.06);
+
+            const fwdFlap1 = new THREE.Mesh(flapGeo, createHoloMaterial(0x00ff88, 0.7));
+            fwdFlap1.position.set(0.6, 3.2, 0);
+            fwdFlap1.rotation.z = -0.2;
+            addPart(fwdFlap1, 'Forward Flaps', 0.8, 1.0);
+
+            const fwdFlap2 = new THREE.Mesh(flapGeo, createHoloMaterial(0x00ff88, 0.7));
+            fwdFlap2.position.set(-0.6, 3.2, 0);
+            fwdFlap2.rotation.z = 0.2;
+            addPart(fwdFlap2, 'Forward Flaps', 0.8, -1.0);
+
+            // === LOX TANK ===
+            const loxGeo = new THREE.CylinderGeometry(0.45, 0.45, 2.0, 24);
+            const lox = new THREE.Mesh(loxGeo, createHoloMaterial(0x00ccff, 0.5));
+            lox.position.y = 2.0;
+            addPart(lox, 'LOX Tank', 0.5);
+
+            // LOX level indicator inside
+            const loxLevel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.35, 0.35, 1.5, 24),
+                createHoloMaterial(0x88ddff, 0.3)
             );
-            engine.position.y = -2.4;
-            rocketGroup.add(engine);
+            loxLevel.position.y = 1.9;
+            addPart(loxLevel, 'LOX Tank', 0.5, 0, 0.6);
 
-            // Engines (3 cones)
+            // === COMMON DOME ===
+            const domeGeo = new THREE.SphereGeometry(0.45, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+            const dome = new THREE.Mesh(domeGeo, createHoloMaterial(0xaaaaaa, 0.6));
+            dome.position.y = 0.9;
+            dome.rotation.x = Math.PI;
+            addPart(dome, 'Common Dome', 0);
+
+            // === METHANE TANK ===
+            const ch4Geo = new THREE.CylinderGeometry(0.45, 0.45, 2.5, 24);
+            const ch4 = new THREE.Mesh(ch4Geo, createHoloMaterial(0xff8800, 0.5));
+            ch4.position.y = -0.5;
+            addPart(ch4, 'Methane Tank', -0.5);
+
+            // Methane level indicator inside
+            const ch4Level = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.35, 0.35, 2.0, 24),
+                createHoloMaterial(0xffaa44, 0.3)
+            );
+            ch4Level.position.y = -0.5;
+            addPart(ch4Level, 'Methane Tank', -0.5, 0, -0.6);
+
+            // === AFT FLAPS ===
+            const aftFlap1 = new THREE.Mesh(flapGeo, createHoloMaterial(0x00ff88, 0.7));
+            aftFlap1.position.set(0.6, -1.5, 0);
+            aftFlap1.rotation.z = -0.2;
+            addPart(aftFlap1, 'Aft Flaps', -1.0, 1.0);
+
+            const aftFlap2 = new THREE.Mesh(flapGeo, createHoloMaterial(0x00ff88, 0.7));
+            aftFlap2.position.set(-0.6, -1.5, 0);
+            aftFlap2.rotation.z = 0.2;
+            addPart(aftFlap2, 'Aft Flaps', -1.0, -1.0);
+
+            // === THRUST STRUCTURE ===
+            const thrustGeo = new THREE.CylinderGeometry(0.45, 0.5, 0.5, 24);
+            const thrust = new THREE.Mesh(thrustGeo, createHoloMaterial(0x888888, 0.7));
+            thrust.position.y = -2.0;
+            addPart(thrust, 'Thrust Structure', -1.2);
+
+            // Thrust structure internal ring
+            const thrustRing = new THREE.Mesh(
+                new THREE.TorusGeometry(0.35, 0.05, 8, 24),
+                createHoloMaterial(0xaaaaaa, 0.7)
+            );
+            thrustRing.position.y = -2.0;
+            thrustRing.rotation.x = Math.PI / 2;
+            addPart(thrustRing, 'Thrust Structure', -1.2, 0, 0.5);
+
+            // === RAPTOR ENGINES ===
+            // Center engine cluster (3 sea-level)
             for (let i = 0; i < 3; i++) {
                 const angle = (i / 3) * Math.PI * 2;
-                const eng = new THREE.Mesh(
-                    new THREE.ConeGeometry(0.15, 0.5, 8),
-                    createHoloMaterial(0x00ff66)
+                const engineGeo = new THREE.ConeGeometry(0.12, 0.6, 12);
+                const engine = new THREE.Mesh(engineGeo, createHoloMaterial(0x00ffaa, 0.8));
+                engine.position.x = Math.cos(angle) * 0.18;
+                engine.position.z = Math.sin(angle) * 0.18;
+                engine.position.y = -2.6;
+                engine.rotation.x = Math.PI;
+                addPart(engine, 'Raptor Engines', -1.5, Math.cos(angle) * 0.3, Math.sin(angle) * 0.3);
+
+                // Engine bell glow
+                const glow = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.08, 0.3, 12),
+                    createHoloMaterial(0x00ff66, 0.4)
                 );
-                eng.position.x = Math.cos(angle) * 0.3;
-                eng.position.z = Math.sin(angle) * 0.3;
-                eng.position.y = -3;
-                eng.rotation.x = Math.PI;
-                rocketGroup.add(eng);
+                glow.position.copy(engine.position);
+                glow.position.y -= 0.3;
+                glow.rotation.x = Math.PI;
+                starshipGroup.add(glow);
             }
 
-            // Fins (4)
-            for (let i = 0; i < 4; i++) {
-                const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
-                const fin = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.6, 1, 0.05),
-                    createHoloMaterial(0x00aaff)
+            // Outer engines (3 vacuum)
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2 + Math.PI / 6;
+                const engineGeo = new THREE.ConeGeometry(0.15, 0.8, 12);
+                const engine = new THREE.Mesh(engineGeo, createHoloMaterial(0x00ddaa, 0.8));
+                engine.position.x = Math.cos(angle) * 0.35;
+                engine.position.z = Math.sin(angle) * 0.35;
+                engine.position.y = -2.7;
+                engine.rotation.x = Math.PI;
+                addPart(engine, 'Raptor Engines', -1.5, Math.cos(angle) * 0.6, Math.sin(angle) * 0.6);
+
+                // Vacuum nozzle extension
+                const nozzle = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.12, 0.18, 0.4, 12, 1, true),
+                    createHoloMaterial(0x666666, 0.6)
                 );
-                fin.position.x = Math.cos(angle) * 0.7;
-                fin.position.z = Math.sin(angle) * 0.7;
-                fin.position.y = -2;
-                fin.rotation.y = -angle;
-                rocketGroup.add(fin);
+                nozzle.position.copy(engine.position);
+                nozzle.position.y -= 0.5;
+                starshipGroup.add(nozzle);
             }
 
-            // Add edges for glow effect
-            rocketGroup.children.forEach(child => {
-                if (child.geometry) {
-                    const edges = new THREE.EdgesGeometry(child.geometry);
-                    const line = new THREE.LineSegments(
-                        edges,
-                        new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 })
+            // === HEAT SHIELD TILES (on one side) ===
+            const tileSize = 0.15;
+            for (let row = 0; row < 20; row++) {
+                for (let col = 0; col < 4; col++) {
+                    const y = 4.5 - row * 0.35;
+                    const angle = (col / 8) * Math.PI - Math.PI / 4;
+
+                    const tile = new THREE.Mesh(
+                        new THREE.BoxGeometry(tileSize, tileSize, 0.02),
+                        createHoloMaterial(0x333333, 0.5)
                     );
-                    line.position.copy(child.position);
-                    line.rotation.copy(child.rotation);
-                    rocketGroup.add(line);
-                }
-            });
+                    tile.position.x = Math.sin(angle) * 0.47;
+                    tile.position.z = Math.cos(angle) * 0.47;
+                    tile.position.y = y;
+                    tile.lookAt(tile.position.x * 2, y, tile.position.z * 2);
 
-            scene.add(rocketGroup);
+                    if (row % 5 === 0 && col === 0) {
+                        addPart(tile, 'Heat Shield', 0, 0.3);
+                    } else {
+                        starshipGroup.add(tile);
+                    }
+                }
+            }
+
+            scene.add(starshipGroup);
 
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
@@ -326,13 +559,31 @@
             requestAnimationFrame(animate);
 
             // Smooth interpolation
-            currentRotX += (targetRotX - currentRotX) * 0.1;
-            currentRotY += (targetRotY - currentRotY) * 0.1;
-            currentZoom += (targetZoom - currentZoom) * 0.1;
+            currentRotX += (targetRotX - currentRotX) * 0.08;
+            currentRotY += (targetRotY - currentRotY) * 0.08;
+            currentZoom += (targetZoom - currentZoom) * 0.08;
+            explodeAmount += (targetExplode - explodeAmount) * 0.06;
 
-            rocketGroup.rotation.x = currentRotX;
-            rocketGroup.rotation.y = currentRotY;
+            starshipGroup.rotation.x = currentRotX;
+            starshipGroup.rotation.y = currentRotY;
             camera.position.z = currentZoom;
+
+            // Update part positions based on explode amount
+            parts.forEach(part => {
+                const data = part.userData;
+                if (data.explodeY !== undefined) {
+                    part.position.y = data.originalY + data.explodeY * explodeAmount;
+                    part.position.x = data.originalX + (data.explodeX || 0) * explodeAmount;
+                    part.position.z = data.originalZ + (data.explodeZ || 0) * explodeAmount;
+                }
+            });
+
+            // Update wireframes to match parts
+            starshipGroup.children.forEach(child => {
+                if (child.userData.parentPart) {
+                    child.position.copy(child.userData.parentPart.position);
+                }
+            });
 
             renderer.render(scene, camera);
         }
@@ -344,7 +595,9 @@
             const loading = document.getElementById('loading');
             const cursorLeft = document.getElementById('cursor-left');
             const cursorRight = document.getElementById('cursor-right');
-            const zoomIndicator = document.getElementById('zoom-indicator');
+            const modeIndicator = document.getElementById('mode-indicator');
+            const partLabel = document.getElementById('part-label');
+            const explodeFill = document.getElementById('explode-fill');
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -382,10 +635,9 @@
                         const landmarks = results.multiHandLandmarks[i];
                         const label = results.multiHandedness[i].label;
 
-                        // Draw on mini canvas
                         drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00ff66', lineWidth: 2 });
 
-                        // MediaPipe mirrors: "Left" = right hand visually
+                        // MediaPipe mirrors labels
                         if (label === 'Left') {
                             hands.right = landmarks;
                         } else {
@@ -394,8 +646,7 @@
                     }
                 }
 
-                // Update cursors and process gestures
-                processHands(cursorLeft, cursorRight, zoomIndicator);
+                processHands(cursorLeft, cursorRight, modeIndicator, partLabel, explodeFill);
             });
 
             loading.style.display = 'none';
@@ -408,12 +659,14 @@
             cam.start();
         }
 
+        function getIndexTip(hand) {
+            return { x: hand[8].x, y: hand[8].y };
+        }
+
         function getPinchCenter(hand) {
-            const thumb = hand[4];
-            const index = hand[8];
             return {
-                x: (thumb.x + index.x) / 2,
-                y: (thumb.y + index.y) / 2
+                x: (hand[4].x + hand[8].x) / 2,
+                y: (hand[4].y + hand[8].y) / 2
             };
         }
 
@@ -423,56 +676,138 @@
             return Math.sqrt(Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2));
         }
 
-        function processHands(cursorLeft, cursorRight, zoomIndicator) {
+        function screenToWorld(x, y) {
+            return {
+                x: (1 - x) * 2 - 1,
+                y: -(y * 2 - 1)
+            };
+        }
+
+        function checkPartHover(screenX, screenY) {
+            const mouse = new THREE.Vector2(
+                ((1 - screenX) * window.innerWidth / window.innerWidth) * 2 - 1,
+                -(screenY * 2 - 1)
+            );
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(parts);
+            if (intersects.length > 0) {
+                return intersects[0].object;
+            }
+            return null;
+        }
+
+        function processHands(cursorLeft, cursorRight, modeIndicator, partLabel, explodeFill) {
             const leftHand = hands.left;
             const rightHand = hands.right;
 
+            let currentHoveredPart = null;
+
             // Update left cursor
             if (leftHand) {
-                const pos = getPinchCenter(leftHand);
+                const tip = getIndexTip(leftHand);
                 const isPinching = getPinchDistance(leftHand) < 0.07;
-                cursorLeft.style.left = ((1 - pos.x) * window.innerWidth) + 'px';
-                cursorLeft.style.top = (pos.y * window.innerHeight) + 'px';
+                cursorLeft.style.left = ((1 - tip.x) * window.innerWidth) + 'px';
+                cursorLeft.style.top = (tip.y * window.innerHeight) + 'px';
                 cursorLeft.classList.add('visible');
                 cursorLeft.classList.toggle('pinching', isPinching);
+
+                // Check what left hand is pointing at
+                const hovered = checkPartHover(tip.x, tip.y);
+                if (hovered && hovered.userData.name) {
+                    currentHoveredPart = hovered;
+                }
             } else {
                 cursorLeft.classList.remove('visible', 'pinching');
             }
 
             // Update right cursor
             if (rightHand) {
-                const pos = getPinchCenter(rightHand);
+                const tip = getIndexTip(rightHand);
                 const isPinching = getPinchDistance(rightHand) < 0.07;
-                cursorRight.style.left = ((1 - pos.x) * window.innerWidth) + 'px';
-                cursorRight.style.top = (pos.y * window.innerHeight) + 'px';
+                cursorRight.style.left = ((1 - tip.x) * window.innerWidth) + 'px';
+                cursorRight.style.top = (tip.y * window.innerHeight) + 'px';
                 cursorRight.classList.add('visible');
                 cursorRight.classList.toggle('pinching', isPinching);
+
+                // Check what right hand is pointing at
+                const hovered = checkPartHover(tip.x, tip.y);
+                if (hovered && hovered.userData.name) {
+                    currentHoveredPart = hovered;
+                }
             } else {
                 cursorRight.classList.remove('visible', 'pinching');
+            }
+
+            // Update part label
+            if (currentHoveredPart) {
+                const name = currentHoveredPart.userData.name;
+                partLabel.querySelector('.name').textContent = name;
+                partLabel.querySelector('.description').textContent = partInfo[name] || '';
+                partLabel.classList.add('visible');
+
+                // Highlight hovered part
+                if (hoveredPart && hoveredPart !== currentHoveredPart) {
+                    hoveredPart.material.emissiveIntensity = 0.1;
+                }
+                currentHoveredPart.material.emissiveIntensity = 0.5;
+                hoveredPart = currentHoveredPart;
+            } else {
+                partLabel.classList.remove('visible');
+                if (hoveredPart) {
+                    hoveredPart.material.emissiveIntensity = 0.1;
+                    hoveredPart = null;
+                }
             }
 
             // Gesture logic
             const leftPinching = leftHand && getPinchDistance(leftHand) < 0.07;
             const rightPinching = rightHand && getPinchDistance(rightHand) < 0.07;
 
-            // Two hands pinching = zoom
-            if (leftPinching && rightPinching) {
-                const leftPos = getPinchCenter(leftHand);
-                const rightPos = getPinchCenter(rightHand);
-                const dist = Math.sqrt(
+            // Two hands - check for spread/zoom
+            if (leftHand && rightHand) {
+                const leftPos = getIndexTip(leftHand);
+                const rightPos = getIndexTip(rightHand);
+                const handDist = Math.sqrt(
                     Math.pow(leftPos.x - rightPos.x, 2) +
                     Math.pow(leftPos.y - rightPos.y, 2)
                 );
 
-                if (lastTwoHandDist !== null) {
-                    const delta = (lastTwoHandDist - dist) * 15;
-                    targetZoom = Math.max(3, Math.min(12, targetZoom + delta));
+                // Both pinching = zoom
+                if (leftPinching && rightPinching) {
+                    if (lastTwoHandDist !== null) {
+                        const delta = (lastTwoHandDist - handDist) * 20;
+                        targetZoom = Math.max(4, Math.min(15, targetZoom + delta));
+                    }
+                    lastTwoHandDist = handDist;
+                    lastSpreadDist = null;
+                    modeIndicator.textContent = 'ZOOMING';
                 }
+                // Neither pinching = spread to explode
+                else if (!leftPinching && !rightPinching) {
+                    // Map hand distance to explode amount
+                    // hands close (0.2) = assembled, hands far (0.8) = exploded
+                    const normalizedDist = Math.max(0, Math.min(1, (handDist - 0.2) / 0.5));
+                    targetExplode = normalizedDist;
 
-                lastTwoHandDist = dist;
-                lastPinchPos = null; // Disable rotation during zoom
+                    explodeFill.style.width = (normalizedDist * 100) + '%';
 
-                zoomIndicator.classList.add('visible');
+                    if (normalizedDist > 0.7) {
+                        modeIndicator.textContent = 'EXPLODED VIEW';
+                    } else if (normalizedDist > 0.3) {
+                        modeIndicator.textContent = 'OPENING...';
+                    } else {
+                        modeIndicator.textContent = 'ASSEMBLED';
+                    }
+
+                    lastTwoHandDist = null;
+                    lastPinchPos = null;
+                }
+                else {
+                    lastTwoHandDist = null;
+                }
             }
             // Single hand pinching = rotate
             else if (leftPinching || rightPinching) {
@@ -480,22 +815,31 @@
                 const pos = getPinchCenter(hand);
 
                 if (lastPinchPos !== null) {
-                    const deltaX = (pos.x - lastPinchPos.x) * 5;
-                    const deltaY = (pos.y - lastPinchPos.y) * 5;
+                    const deltaX = (pos.x - lastPinchPos.x) * 6;
+                    const deltaY = (pos.y - lastPinchPos.y) * 6;
                     targetRotY -= deltaX;
                     targetRotX += deltaY;
                 }
 
                 lastPinchPos = pos;
                 lastTwoHandDist = null;
-
-                zoomIndicator.classList.remove('visible');
+                modeIndicator.textContent = 'ROTATING';
             }
-            // No pinch = reset
+            // No pinch with one hand
+            else if (leftHand || rightHand) {
+                lastPinchPos = null;
+                lastTwoHandDist = null;
+                if (explodeAmount > 0.3) {
+                    modeIndicator.textContent = 'EXPLODED VIEW';
+                } else {
+                    modeIndicator.textContent = 'POINT TO EXPLORE';
+                }
+            }
+            // No hands
             else {
                 lastPinchPos = null;
                 lastTwoHandDist = null;
-                zoomIndicator.classList.remove('visible');
+                lastSpreadDist = null;
             }
         }
 
