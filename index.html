@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Control Earth</title>
+    <title>Starship Blueprint</title>
     <style>
         * {
             margin: 0;
@@ -13,24 +13,23 @@
 
         body {
             overflow: hidden;
-            background: #000;
+            background: #0a0a0f;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
         #container {
             width: 100vw;
             height: 100vh;
-            position: relative;
         }
 
         #webcam {
             position: fixed;
             bottom: 20px;
             right: 20px;
-            width: 240px;
-            height: 180px;
+            width: 200px;
+            height: 150px;
             border-radius: 12px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(0, 255, 100, 0.3);
             transform: scaleX(-1);
             z-index: 100;
             object-fit: cover;
@@ -40,72 +39,108 @@
             position: fixed;
             bottom: 20px;
             right: 20px;
-            width: 240px;
-            height: 180px;
+            width: 200px;
+            height: 150px;
             border-radius: 12px;
             z-index: 101;
             pointer-events: none;
             transform: scaleX(-1);
         }
 
+        .hand-cursor {
+            position: fixed;
+            width: 50px;
+            height: 50px;
+            border: 3px solid #00ff66;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 200;
+            transform: translate(-50%, -50%);
+            transition: transform 0.05s, opacity 0.2s, border-color 0.2s, box-shadow 0.2s;
+            opacity: 0;
+        }
+
+        .hand-cursor.visible {
+            opacity: 1;
+        }
+
+        .hand-cursor.left {
+            border-color: #00ff66;
+        }
+
+        .hand-cursor.right {
+            border-color: #66ffaa;
+        }
+
+        .hand-cursor.pinching {
+            box-shadow: 0 0 30px rgba(0, 255, 170, 0.6);
+            transform: translate(-50%, -50%) scale(0.7);
+        }
+
+        .hand-cursor::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 6px;
+            height: 6px;
+            background: currentColor;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .hand-cursor.left::after { background: #00ff66; }
+        .hand-cursor.right::after { background: #66ffaa; }
+
+        #part-label {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00ffaa;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(0, 255, 170, 0.8);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        #part-label.visible {
+            opacity: 1;
+        }
+
+        #part-label .description {
+            font-size: 14px;
+            font-weight: normal;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
+        }
+
         #instructions {
             position: fixed;
-            top: 20px;
+            bottom: 20px;
             left: 20px;
             color: white;
             z-index: 100;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.7);
             padding: 20px;
             border-radius: 12px;
-            max-width: 300px;
-            backdrop-filter: blur(10px);
+            font-size: 14px;
+            max-width: 280px;
         }
 
-        #instructions h1 {
-            font-size: 24px;
-            margin-bottom: 15px;
-            background: linear-gradient(135deg, #00d4ff, #00ff88);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        #instructions h2 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            color: #00ff66;
         }
 
         #instructions p {
-            font-size: 14px;
-            line-height: 1.6;
-            color: rgba(255, 255, 255, 0.8);
-            margin-bottom: 10px;
-        }
-
-        #instructions .gesture {
-            display: flex;
-            align-items: center;
-            gap: 10px;
             margin: 8px 0;
-        }
-
-        #instructions .gesture-icon {
-            font-size: 20px;
-        }
-
-        #status {
-            position: fixed;
-            top: 20px;
-            right: 280px;
-            color: white;
-            z-index: 100;
-            background: rgba(0, 0, 0, 0.6);
-            padding: 15px 20px;
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-            font-size: 14px;
-        }
-
-        #status.detecting {
-            border: 1px solid #00ff88;
-        }
-
-        #status.no-hand {
-            border: 1px solid #ff6b6b;
+            color: rgba(255, 255, 255, 0.8);
         }
 
         .loading {
@@ -114,50 +149,75 @@
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
-            font-size: 24px;
-            z-index: 200;
+            font-size: 20px;
+            z-index: 300;
             text-align: center;
         }
 
         .loading-spinner {
             width: 50px;
             height: 50px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top-color: #00d4ff;
+            border: 3px solid rgba(0, 255, 102, 0.2);
+            border-top-color: #00ff66;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+            margin: 0 auto 15px;
         }
 
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
 
-        #pinch-indicator {
+        #mode-indicator {
             position: fixed;
-            top: 50%;
+            top: 20px;
             left: 50%;
-            transform: translate(-50%, -50%);
-            width: 100px;
-            height: 100px;
-            border: 3px solid #00ff88;
-            border-radius: 50%;
-            opacity: 0;
-            transition: opacity 0.2s, transform 0.2s;
-            pointer-events: none;
-            z-index: 50;
+            transform: translateX(-50%);
+            color: #00ff66;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 25px;
+            border-radius: 25px;
+            border: 2px solid rgba(0, 255, 102, 0.3);
         }
 
-        #pinch-indicator.active {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(0.8);
+        #explode-meter {
+            position: fixed;
+            top: 20px;
+            right: 240px;
+            width: 150px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            z-index: 100;
+        }
+
+        #explode-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00ff66, #00ffaa);
+            transition: width 0.1s;
+        }
+
+        #explode-label {
+            position: fixed;
+            top: 35px;
+            right: 240px;
+            width: 150px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 11px;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
     <div id="loading" class="loading">
         <div class="loading-spinner"></div>
-        <div>Loading Hand Tracking...</div>
+        <div>Loading Starship...</div>
     </div>
 
     <div id="container"></div>
@@ -165,391 +225,624 @@
     <video id="webcam" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
 
+    <div class="hand-cursor left" id="cursor-left"></div>
+    <div class="hand-cursor right" id="cursor-right"></div>
+
+    <div id="mode-indicator">ASSEMBLED</div>
+    <div id="part-label"><span class="name"></span><div class="description"></div></div>
+
+    <div id="explode-meter"><div id="explode-fill"></div></div>
+    <div id="explode-label">SPREAD TO OPEN</div>
+
     <div id="instructions">
-        <h1>🌍 Hand Control Earth</h1>
-        <div class="gesture">
-            <span class="gesture-icon">👆</span>
-            <span>Move hand to rotate globe</span>
-        </div>
-        <div class="gesture">
-            <span class="gesture-icon">🤏</span>
-            <span>Pinch to grab & spin</span>
-        </div>
-        <div class="gesture">
-            <span class="gesture-icon">✌️</span>
-            <span>Two fingers apart = zoom out</span>
-        </div>
-        <div class="gesture">
-            <span class="gesture-icon">👌</span>
-            <span>Fingers together = zoom in</span>
-        </div>
+        <h2>🚀 Starship Blueprint</h2>
+        <p>🤏 <strong>Pinch + drag</strong> to rotate</p>
+        <p>🤏🤏 <strong>Two hands pinch</strong> + move to zoom</p>
+        <p>✋✋ <strong>Spread hands apart</strong> to explode view</p>
+        <p>👆 <strong>Point</strong> at parts to see names</p>
     </div>
 
-    <div id="status" class="no-hand">No hand detected</div>
-    <div id="pinch-indicator"></div>
-
-    <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-    <!-- MediaPipe -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
     <script>
-        // Three.js setup
-        let scene, camera, renderer, earth, clouds, stars;
-        let targetRotationX = 0;
-        let targetRotationY = 0;
-        let currentRotationX = 0;
-        let currentRotationY = 0;
-        let targetZoom = 5;
-        let currentZoom = 5;
+        // Three.js scene
+        let scene, camera, renderer, starshipGroup;
+        let targetRotX = 0, targetRotY = 0;
+        let currentRotX = 0, currentRotY = 0;
+        let targetZoom = 8, currentZoom = 8;
+        let explodeAmount = 0, targetExplode = 0;
+
+        // Parts with their explode positions and info
+        const parts = [];
+        const partInfo = {
+            'Nose Cone': 'Aerodynamic tip with header tanks for landing propellant',
+            'Payload Bay': 'Pressurized cargo area - can hold 100+ tons to orbit',
+            'Forward Flaps': 'Control surfaces for atmospheric re-entry steering',
+            'LOX Tank': 'Liquid Oxygen tank - 1,200 cubic meters capacity',
+            'Common Dome': 'Shared bulkhead between LOX and methane tanks',
+            'Methane Tank': 'Liquid Methane fuel tank - sub-cooled to -162°C',
+            'Aft Flaps': 'Rear control surfaces for belly-flop maneuver',
+            'Thrust Structure': 'Reinforced structure supporting engine thrust loads',
+            'Raptor Engines': '6 Raptor engines - 3 sea-level, 3 vacuum optimized',
+            'Heat Shield': 'Hexagonal tiles protecting from 1,400°C re-entry heat',
+            'Avionics Bay': 'Flight computers, sensors, and communication systems',
+            'Header Tank': 'Small tanks in nose for landing fuel reserves'
+        };
 
         // Hand tracking state
-        let isPinching = false;
-        let lastHandPosition = null;
-        let pinchStartDistance = null;
+        let hands = { left: null, right: null };
+        let lastPinchPos = null;
+        let lastTwoHandDist = null;
+        let lastSpreadDist = null;
+        let hoveredPart = null;
 
-        // Initialize Three.js scene
+        function createHoloMaterial(color = 0x00aaff, opacity = 0.6) {
+            return new THREE.MeshPhongMaterial({
+                color: color,
+                transparent: true,
+                opacity: opacity,
+                side: THREE.DoubleSide,
+                emissive: color,
+                emissiveIntensity: 0.1
+            });
+        }
+
+        function createWireMaterial(color = 0x00ffff) {
+            return new THREE.LineBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.4
+            });
+        }
+
+        function addPart(mesh, name, explodeY, explodeX = 0, explodeZ = 0) {
+            mesh.userData = {
+                name: name,
+                explodeY: explodeY,
+                explodeX: explodeX,
+                explodeZ: explodeZ,
+                originalY: mesh.position.y,
+                originalX: mesh.position.x,
+                originalZ: mesh.position.z
+            };
+            parts.push(mesh);
+            starshipGroup.add(mesh);
+
+            // Add wireframe
+            if (mesh.geometry) {
+                const edges = new THREE.EdgesGeometry(mesh.geometry);
+                const wire = new THREE.LineSegments(edges, createWireMaterial());
+                wire.position.copy(mesh.position);
+                wire.rotation.copy(mesh.rotation);
+                wire.userData = { parentPart: mesh };
+                starshipGroup.add(wire);
+            }
+        }
+
         function initScene() {
             scene = new THREE.Scene();
 
-            camera = new THREE.PerspectiveCamera(
-                45,
-                window.innerWidth / window.innerHeight,
-                0.1,
-                1000
-            );
-            camera.position.z = 5;
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 8;
+            camera.position.y = 2;
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setClearColor(0x0a0a0f);
             document.getElementById('container').appendChild(renderer.domElement);
 
-            // Create starfield
-            const starGeometry = new THREE.BufferGeometry();
-            const starCount = 10000;
-            const positions = new Float32Array(starCount * 3);
+            // Lighting
+            const ambient = new THREE.AmbientLight(0x404060, 0.5);
+            scene.add(ambient);
 
-            for (let i = 0; i < starCount * 3; i += 3) {
-                positions[i] = (Math.random() - 0.5) * 2000;
-                positions[i + 1] = (Math.random() - 0.5) * 2000;
-                positions[i + 2] = (Math.random() - 0.5) * 2000;
+            const light1 = new THREE.DirectionalLight(0x00ffaa, 0.8);
+            light1.position.set(5, 10, 5);
+            scene.add(light1);
+
+            const light2 = new THREE.DirectionalLight(0x0066ff, 0.4);
+            light2.position.set(-5, -5, 5);
+            scene.add(light2);
+
+            // Stars
+            const starGeo = new THREE.BufferGeometry();
+            const starPos = new Float32Array(3000 * 3);
+            for (let i = 0; i < 3000 * 3; i += 3) {
+                starPos[i] = (Math.random() - 0.5) * 150;
+                starPos[i + 1] = (Math.random() - 0.5) * 150;
+                starPos[i + 2] = (Math.random() - 0.5) * 150 - 30;
             }
-
-            starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            const starMaterial = new THREE.PointsMaterial({
-                color: 0xffffff,
-                size: 0.5,
-                transparent: true,
-                opacity: 0.8
-            });
-            stars = new THREE.Points(starGeometry, starMaterial);
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x4488ff, size: 0.12 }));
             scene.add(stars);
 
-            // Create Earth
-            const earthGeometry = new THREE.SphereGeometry(1, 64, 64);
+            // Starship group
+            starshipGroup = new THREE.Group();
 
-            // Create a procedural Earth texture
-            const earthCanvas = document.createElement('canvas');
-            earthCanvas.width = 2048;
-            earthCanvas.height = 1024;
-            const ctx = earthCanvas.getContext('2d');
+            // === NOSE CONE ===
+            const noseGeo = new THREE.ConeGeometry(0.45, 1.8, 24);
+            const nose = new THREE.Mesh(noseGeo, createHoloMaterial(0x00ffcc, 0.7));
+            nose.position.y = 5.4;
+            addPart(nose, 'Nose Cone', 2.5);
 
-            // Ocean gradient
-            const oceanGradient = ctx.createLinearGradient(0, 0, 0, 1024);
-            oceanGradient.addColorStop(0, '#1a4969');
-            oceanGradient.addColorStop(0.5, '#1e5f8a');
-            oceanGradient.addColorStop(1, '#1a4969');
-            ctx.fillStyle = oceanGradient;
-            ctx.fillRect(0, 0, 2048, 1024);
+            // Header tanks inside nose (visible when exploded)
+            const headerTank1 = new THREE.Mesh(
+                new THREE.SphereGeometry(0.15, 16, 16),
+                createHoloMaterial(0xff6600, 0.6)
+            );
+            headerTank1.position.set(0.1, 5.0, 0);
+            addPart(headerTank1, 'Header Tank', 2.3, 0.5);
 
-            // Add some landmasses (simplified continents)
-            ctx.fillStyle = '#2d5a27';
+            const headerTank2 = new THREE.Mesh(
+                new THREE.SphereGeometry(0.15, 16, 16),
+                createHoloMaterial(0x00aaff, 0.6)
+            );
+            headerTank2.position.set(-0.1, 5.0, 0);
+            addPart(headerTank2, 'Header Tank', 2.3, -0.5);
 
-            // North America
-            ctx.beginPath();
-            ctx.ellipse(400, 300, 200, 150, 0, 0, Math.PI * 2);
-            ctx.fill();
+            // === PAYLOAD BAY ===
+            const payloadGeo = new THREE.CylinderGeometry(0.45, 0.45, 2.2, 24);
+            const payload = new THREE.Mesh(payloadGeo, createHoloMaterial(0x00aaff, 0.5));
+            payload.position.y = 4.0;
+            addPart(payload, 'Payload Bay', 1.5);
 
-            // South America
-            ctx.beginPath();
-            ctx.ellipse(550, 600, 100, 180, 0.3, 0, Math.PI * 2);
-            ctx.fill();
+            // Cargo inside payload bay
+            const satellite = new THREE.Mesh(
+                new THREE.BoxGeometry(0.25, 0.25, 0.25),
+                createHoloMaterial(0xffaa00, 0.7)
+            );
+            satellite.position.set(0, 4.2, 0);
+            addPart(satellite, 'Avionics Bay', 1.5, 0.8);
 
-            // Europe/Africa
-            ctx.beginPath();
-            ctx.ellipse(1100, 350, 80, 100, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(1100, 550, 100, 150, 0, 0, Math.PI * 2);
-            ctx.fill();
+            // Solar panels (folded)
+            const panel1 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.02, 0.4, 0.2),
+                createHoloMaterial(0x0066ff, 0.7)
+            );
+            panel1.position.set(0.2, 4.2, 0);
+            addPart(panel1, 'Avionics Bay', 1.5, 1.2);
 
-            // Asia
-            ctx.beginPath();
-            ctx.ellipse(1400, 300, 250, 150, 0, 0, Math.PI * 2);
-            ctx.fill();
+            // === FORWARD FLAPS ===
+            const flapGeo = new THREE.BoxGeometry(0.5, 0.8, 0.06);
 
-            // Australia
-            ctx.beginPath();
-            ctx.ellipse(1650, 650, 100, 70, 0, 0, Math.PI * 2);
-            ctx.fill();
+            const fwdFlap1 = new THREE.Mesh(flapGeo, createHoloMaterial(0x00ff88, 0.7));
+            fwdFlap1.position.set(0.6, 3.2, 0);
+            fwdFlap1.rotation.z = -0.2;
+            addPart(fwdFlap1, 'Forward Flaps', 0.8, 1.0);
 
-            // Antarctica
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 950, 2048, 74);
-            ctx.fillRect(0, 0, 2048, 50);
+            const fwdFlap2 = new THREE.Mesh(flapGeo, createHoloMaterial(0x00ff88, 0.7));
+            fwdFlap2.position.set(-0.6, 3.2, 0);
+            fwdFlap2.rotation.z = 0.2;
+            addPart(fwdFlap2, 'Forward Flaps', 0.8, -1.0);
 
-            const earthTexture = new THREE.CanvasTexture(earthCanvas);
+            // === LOX TANK ===
+            const loxGeo = new THREE.CylinderGeometry(0.45, 0.45, 2.0, 24);
+            const lox = new THREE.Mesh(loxGeo, createHoloMaterial(0x00ccff, 0.5));
+            lox.position.y = 2.0;
+            addPart(lox, 'LOX Tank', 0.5);
 
-            const earthMaterial = new THREE.MeshPhongMaterial({
-                map: earthTexture,
-                bumpScale: 0.05,
-                specular: new THREE.Color(0x333333),
-                shininess: 5
-            });
+            // LOX level indicator inside
+            const loxLevel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.35, 0.35, 1.5, 24),
+                createHoloMaterial(0x88ddff, 0.3)
+            );
+            loxLevel.position.y = 1.9;
+            addPart(loxLevel, 'LOX Tank', 0.5, 0, 0.6);
 
-            earth = new THREE.Mesh(earthGeometry, earthMaterial);
-            scene.add(earth);
+            // === COMMON DOME ===
+            const domeGeo = new THREE.SphereGeometry(0.45, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+            const dome = new THREE.Mesh(domeGeo, createHoloMaterial(0xaaaaaa, 0.6));
+            dome.position.y = 0.9;
+            dome.rotation.x = Math.PI;
+            addPart(dome, 'Common Dome', 0);
 
-            // Create atmosphere glow
-            const atmosphereGeometry = new THREE.SphereGeometry(1.15, 64, 64);
-            const atmosphereMaterial = new THREE.MeshBasicMaterial({
-                color: 0x00aaff,
-                transparent: true,
-                opacity: 0.1,
-                side: THREE.BackSide
-            });
-            const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
-            scene.add(atmosphere);
+            // === METHANE TANK ===
+            const ch4Geo = new THREE.CylinderGeometry(0.45, 0.45, 2.5, 24);
+            const ch4 = new THREE.Mesh(ch4Geo, createHoloMaterial(0xff8800, 0.5));
+            ch4.position.y = -0.5;
+            addPart(ch4, 'Methane Tank', -0.5);
 
-            // Create clouds
-            const cloudGeometry = new THREE.SphereGeometry(1.02, 64, 64);
+            // Methane level indicator inside
+            const ch4Level = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.35, 0.35, 2.0, 24),
+                createHoloMaterial(0xffaa44, 0.3)
+            );
+            ch4Level.position.y = -0.5;
+            addPart(ch4Level, 'Methane Tank', -0.5, 0, -0.6);
 
-            const cloudCanvas = document.createElement('canvas');
-            cloudCanvas.width = 1024;
-            cloudCanvas.height = 512;
-            const cloudCtx = cloudCanvas.getContext('2d');
+            // === AFT FLAPS ===
+            const aftFlap1 = new THREE.Mesh(flapGeo, createHoloMaterial(0x00ff88, 0.7));
+            aftFlap1.position.set(0.6, -1.5, 0);
+            aftFlap1.rotation.z = -0.2;
+            addPart(aftFlap1, 'Aft Flaps', -1.0, 1.0);
 
-            cloudCtx.fillStyle = 'rgba(0, 0, 0, 0)';
-            cloudCtx.fillRect(0, 0, 1024, 512);
+            const aftFlap2 = new THREE.Mesh(flapGeo, createHoloMaterial(0x00ff88, 0.7));
+            aftFlap2.position.set(-0.6, -1.5, 0);
+            aftFlap2.rotation.z = 0.2;
+            addPart(aftFlap2, 'Aft Flaps', -1.0, -1.0);
 
-            // Add cloud patterns
-            cloudCtx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-            for (let i = 0; i < 100; i++) {
-                const x = Math.random() * 1024;
-                const y = Math.random() * 512;
-                const radius = Math.random() * 50 + 20;
-                cloudCtx.beginPath();
-                cloudCtx.arc(x, y, radius, 0, Math.PI * 2);
-                cloudCtx.fill();
+            // === THRUST STRUCTURE ===
+            const thrustGeo = new THREE.CylinderGeometry(0.45, 0.5, 0.5, 24);
+            const thrust = new THREE.Mesh(thrustGeo, createHoloMaterial(0x888888, 0.7));
+            thrust.position.y = -2.0;
+            addPart(thrust, 'Thrust Structure', -1.2);
+
+            // Thrust structure internal ring
+            const thrustRing = new THREE.Mesh(
+                new THREE.TorusGeometry(0.35, 0.05, 8, 24),
+                createHoloMaterial(0xaaaaaa, 0.7)
+            );
+            thrustRing.position.y = -2.0;
+            thrustRing.rotation.x = Math.PI / 2;
+            addPart(thrustRing, 'Thrust Structure', -1.2, 0, 0.5);
+
+            // === RAPTOR ENGINES ===
+            // Center engine cluster (3 sea-level)
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2;
+                const engineGeo = new THREE.ConeGeometry(0.12, 0.6, 12);
+                const engine = new THREE.Mesh(engineGeo, createHoloMaterial(0x00ffaa, 0.8));
+                engine.position.x = Math.cos(angle) * 0.18;
+                engine.position.z = Math.sin(angle) * 0.18;
+                engine.position.y = -2.6;
+                engine.rotation.x = Math.PI;
+                addPart(engine, 'Raptor Engines', -1.5, Math.cos(angle) * 0.3, Math.sin(angle) * 0.3);
+
+                // Engine bell glow
+                const glow = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.08, 0.3, 12),
+                    createHoloMaterial(0x00ff66, 0.4)
+                );
+                glow.position.copy(engine.position);
+                glow.position.y -= 0.3;
+                glow.rotation.x = Math.PI;
+                starshipGroup.add(glow);
             }
 
-            const cloudTexture = new THREE.CanvasTexture(cloudCanvas);
+            // Outer engines (3 vacuum)
+            for (let i = 0; i < 3; i++) {
+                const angle = (i / 3) * Math.PI * 2 + Math.PI / 6;
+                const engineGeo = new THREE.ConeGeometry(0.15, 0.8, 12);
+                const engine = new THREE.Mesh(engineGeo, createHoloMaterial(0x00ddaa, 0.8));
+                engine.position.x = Math.cos(angle) * 0.35;
+                engine.position.z = Math.sin(angle) * 0.35;
+                engine.position.y = -2.7;
+                engine.rotation.x = Math.PI;
+                addPart(engine, 'Raptor Engines', -1.5, Math.cos(angle) * 0.6, Math.sin(angle) * 0.6);
 
-            const cloudMaterial = new THREE.MeshPhongMaterial({
-                map: cloudTexture,
-                transparent: true,
-                opacity: 0.4,
-                depthWrite: false
+                // Vacuum nozzle extension
+                const nozzle = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.12, 0.18, 0.4, 12, 1, true),
+                    createHoloMaterial(0x666666, 0.6)
+                );
+                nozzle.position.copy(engine.position);
+                nozzle.position.y -= 0.5;
+                starshipGroup.add(nozzle);
+            }
+
+            // === HEAT SHIELD TILES (on one side) ===
+            const tileSize = 0.15;
+            for (let row = 0; row < 20; row++) {
+                for (let col = 0; col < 4; col++) {
+                    const y = 4.5 - row * 0.35;
+                    const angle = (col / 8) * Math.PI - Math.PI / 4;
+
+                    const tile = new THREE.Mesh(
+                        new THREE.BoxGeometry(tileSize, tileSize, 0.02),
+                        createHoloMaterial(0x333333, 0.5)
+                    );
+                    tile.position.x = Math.sin(angle) * 0.47;
+                    tile.position.z = Math.cos(angle) * 0.47;
+                    tile.position.y = y;
+                    tile.lookAt(tile.position.x * 2, y, tile.position.z * 2);
+
+                    if (row % 5 === 0 && col === 0) {
+                        addPart(tile, 'Heat Shield', 0, 0.3);
+                    } else {
+                        starshipGroup.add(tile);
+                    }
+                }
+            }
+
+            scene.add(starshipGroup);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
             });
-
-            clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
-            scene.add(clouds);
-
-            // Lighting
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-            scene.add(ambientLight);
-
-            const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
-            sunLight.position.set(5, 3, 5);
-            scene.add(sunLight);
-
-            // Handle resize
-            window.addEventListener('resize', onWindowResize);
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
         function animate() {
             requestAnimationFrame(animate);
 
-            // Smooth rotation
-            currentRotationX += (targetRotationX - currentRotationX) * 0.08;
-            currentRotationY += (targetRotationY - currentRotationY) * 0.08;
+            // Smooth interpolation
+            currentRotX += (targetRotX - currentRotX) * 0.08;
+            currentRotY += (targetRotY - currentRotY) * 0.08;
+            currentZoom += (targetZoom - currentZoom) * 0.08;
+            explodeAmount += (targetExplode - explodeAmount) * 0.06;
 
-            earth.rotation.x = currentRotationX;
-            earth.rotation.y = currentRotationY;
-            clouds.rotation.x = currentRotationX;
-            clouds.rotation.y = currentRotationY + 0.001;
-
-            // Auto-rotate clouds slightly
-            clouds.rotation.y += 0.0002;
-
-            // Smooth zoom
-            currentZoom += (targetZoom - currentZoom) * 0.1;
+            starshipGroup.rotation.x = currentRotX;
+            starshipGroup.rotation.y = currentRotY;
             camera.position.z = currentZoom;
 
-            // Slowly rotate stars
-            stars.rotation.y += 0.0001;
+            // Update part positions based on explode amount
+            parts.forEach(part => {
+                const data = part.userData;
+                if (data.explodeY !== undefined) {
+                    part.position.y = data.originalY + data.explodeY * explodeAmount;
+                    part.position.x = data.originalX + (data.explodeX || 0) * explodeAmount;
+                    part.position.z = data.originalZ + (data.explodeZ || 0) * explodeAmount;
+                }
+            });
+
+            // Update wireframes to match parts
+            starshipGroup.children.forEach(child => {
+                if (child.userData.parentPart) {
+                    child.position.copy(child.userData.parentPart.position);
+                }
+            });
 
             renderer.render(scene, camera);
         }
 
-        // Hand tracking setup
         async function initHandTracking() {
             const video = document.getElementById('webcam');
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
-            const status = document.getElementById('status');
-            const pinchIndicator = document.getElementById('pinch-indicator');
             const loading = document.getElementById('loading');
+            const cursorLeft = document.getElementById('cursor-left');
+            const cursorRight = document.getElementById('cursor-right');
+            const modeIndicator = document.getElementById('mode-indicator');
+            const partLabel = document.getElementById('part-label');
+            const explodeFill = document.getElementById('explode-fill');
 
-            // Get webcam
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        width: 640,
-                        height: 480,
-                        facingMode: 'user'
-                    }
+                    video: { width: 640, height: 480, facingMode: 'user' }
                 });
                 video.srcObject = stream;
                 await video.play();
             } catch (err) {
-                console.error('Error accessing webcam:', err);
-                loading.innerHTML = '❌ Camera access denied. Please allow camera access and refresh.';
+                loading.innerHTML = '❌ Camera access needed';
                 return;
             }
 
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
-            // Initialize MediaPipe Hands
-            const hands = new Hands({
-                locateFile: (file) => {
-                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-                }
+            const mpHands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
             });
 
-            hands.setOptions({
-                maxNumHands: 1,
+            mpHands.setOptions({
+                maxNumHands: 2,
                 modelComplexity: 1,
                 minDetectionConfidence: 0.7,
                 minTrackingConfidence: 0.5
             });
 
-            hands.onResults((results) => {
-                // Clear canvas
+            mpHands.onResults((results) => {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                    const landmarks = results.multiHandLandmarks[0];
+                hands.left = null;
+                hands.right = null;
 
-                    // Draw hand landmarks
-                    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {
-                        color: '#00FF88',
-                        lineWidth: 2
-                    });
-                    drawLandmarks(ctx, landmarks, {
-                        color: '#00D4FF',
-                        lineWidth: 1,
-                        radius: 3
-                    });
+                if (results.multiHandLandmarks && results.multiHandedness) {
+                    for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                        const landmarks = results.multiHandLandmarks[i];
+                        const label = results.multiHandedness[i].label;
 
-                    // Get key points
-                    const thumbTip = landmarks[4];
-                    const indexTip = landmarks[8];
-                    const middleTip = landmarks[12];
-                    const wrist = landmarks[0];
+                        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00ff66', lineWidth: 2 });
 
-                    // Calculate pinch distance (thumb to index)
-                    const pinchDistance = Math.sqrt(
-                        Math.pow(thumbTip.x - indexTip.x, 2) +
-                        Math.pow(thumbTip.y - indexTip.y, 2)
-                    );
-
-                    // Calculate zoom distance (index to middle finger)
-                    const zoomDistance = Math.sqrt(
-                        Math.pow(indexTip.x - middleTip.x, 2) +
-                        Math.pow(indexTip.y - middleTip.y, 2)
-                    );
-
-                    // Pinch detection (threshold ~0.08)
-                    const wasPinching = isPinching;
-                    isPinching = pinchDistance < 0.08;
-
-                    // Update UI
-                    if (isPinching) {
-                        status.textContent = '🤏 Pinching - Drag to rotate!';
-                        status.className = 'detecting';
-                        pinchIndicator.classList.add('active');
-                    } else {
-                        status.textContent = '✋ Hand detected';
-                        status.className = 'detecting';
-                        pinchIndicator.classList.remove('active');
+                        // MediaPipe mirrors labels
+                        if (label === 'Left') {
+                            hands.right = landmarks;
+                        } else {
+                            hands.left = landmarks;
+                        }
                     }
-
-                    // Hand center position for rotation
-                    const handCenter = {
-                        x: (indexTip.x + thumbTip.x) / 2,
-                        y: (indexTip.y + thumbTip.y) / 2
-                    };
-
-                    if (isPinching && lastHandPosition) {
-                        // Calculate rotation based on hand movement
-                        const deltaX = (handCenter.x - lastHandPosition.x) * 5;
-                        const deltaY = (handCenter.y - lastHandPosition.y) * 5;
-
-                        targetRotationY -= deltaX;
-                        targetRotationX += deltaY;
-
-                        // Clamp vertical rotation
-                        targetRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, targetRotationX));
-                    }
-
-                    // Zoom based on finger spread (index to middle)
-                    if (pinchStartDistance === null) {
-                        pinchStartDistance = zoomDistance;
-                    }
-
-                    const zoomDelta = (zoomDistance - 0.1) * 20;
-                    targetZoom = 5 - zoomDelta;
-                    targetZoom = Math.max(2, Math.min(10, targetZoom));
-
-                    lastHandPosition = handCenter;
-
-                } else {
-                    status.textContent = '👋 Show your hand';
-                    status.className = 'no-hand';
-                    pinchIndicator.classList.remove('active');
-                    isPinching = false;
-                    lastHandPosition = null;
-                    pinchStartDistance = null;
                 }
+
+                processHands(cursorLeft, cursorRight, modeIndicator, partLabel, explodeFill);
             });
 
-            // Hide loading
             loading.style.display = 'none';
 
-            // Start camera
-            const mpCamera = new Camera(video, {
-                onFrame: async () => {
-                    await hands.send({ image: video });
-                },
+            const cam = new Camera(video, {
+                onFrame: async () => await mpHands.send({ image: video }),
                 width: 640,
                 height: 480
             });
-            mpCamera.start();
+            cam.start();
         }
 
-        // Initialize everything
+        function getIndexTip(hand) {
+            return { x: hand[8].x, y: hand[8].y };
+        }
+
+        function getPinchCenter(hand) {
+            return {
+                x: (hand[4].x + hand[8].x) / 2,
+                y: (hand[4].y + hand[8].y) / 2
+            };
+        }
+
+        function getPinchDistance(hand) {
+            const thumb = hand[4];
+            const index = hand[8];
+            return Math.sqrt(Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2));
+        }
+
+        function screenToWorld(x, y) {
+            return {
+                x: (1 - x) * 2 - 1,
+                y: -(y * 2 - 1)
+            };
+        }
+
+        function checkPartHover(screenX, screenY) {
+            const mouse = new THREE.Vector2(
+                ((1 - screenX) * window.innerWidth / window.innerWidth) * 2 - 1,
+                -(screenY * 2 - 1)
+            );
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(parts);
+            if (intersects.length > 0) {
+                return intersects[0].object;
+            }
+            return null;
+        }
+
+        function processHands(cursorLeft, cursorRight, modeIndicator, partLabel, explodeFill) {
+            const leftHand = hands.left;
+            const rightHand = hands.right;
+
+            let currentHoveredPart = null;
+
+            // Update left cursor
+            if (leftHand) {
+                const tip = getIndexTip(leftHand);
+                const isPinching = getPinchDistance(leftHand) < 0.07;
+                cursorLeft.style.left = ((1 - tip.x) * window.innerWidth) + 'px';
+                cursorLeft.style.top = (tip.y * window.innerHeight) + 'px';
+                cursorLeft.classList.add('visible');
+                cursorLeft.classList.toggle('pinching', isPinching);
+
+                // Check what left hand is pointing at
+                const hovered = checkPartHover(tip.x, tip.y);
+                if (hovered && hovered.userData.name) {
+                    currentHoveredPart = hovered;
+                }
+            } else {
+                cursorLeft.classList.remove('visible', 'pinching');
+            }
+
+            // Update right cursor
+            if (rightHand) {
+                const tip = getIndexTip(rightHand);
+                const isPinching = getPinchDistance(rightHand) < 0.07;
+                cursorRight.style.left = ((1 - tip.x) * window.innerWidth) + 'px';
+                cursorRight.style.top = (tip.y * window.innerHeight) + 'px';
+                cursorRight.classList.add('visible');
+                cursorRight.classList.toggle('pinching', isPinching);
+
+                // Check what right hand is pointing at
+                const hovered = checkPartHover(tip.x, tip.y);
+                if (hovered && hovered.userData.name) {
+                    currentHoveredPart = hovered;
+                }
+            } else {
+                cursorRight.classList.remove('visible', 'pinching');
+            }
+
+            // Update part label
+            if (currentHoveredPart) {
+                const name = currentHoveredPart.userData.name;
+                partLabel.querySelector('.name').textContent = name;
+                partLabel.querySelector('.description').textContent = partInfo[name] || '';
+                partLabel.classList.add('visible');
+
+                // Highlight hovered part
+                if (hoveredPart && hoveredPart !== currentHoveredPart) {
+                    hoveredPart.material.emissiveIntensity = 0.1;
+                }
+                currentHoveredPart.material.emissiveIntensity = 0.5;
+                hoveredPart = currentHoveredPart;
+            } else {
+                partLabel.classList.remove('visible');
+                if (hoveredPart) {
+                    hoveredPart.material.emissiveIntensity = 0.1;
+                    hoveredPart = null;
+                }
+            }
+
+            // Gesture logic
+            const leftPinching = leftHand && getPinchDistance(leftHand) < 0.07;
+            const rightPinching = rightHand && getPinchDistance(rightHand) < 0.07;
+
+            // Two hands - check for spread/zoom
+            if (leftHand && rightHand) {
+                const leftPos = getIndexTip(leftHand);
+                const rightPos = getIndexTip(rightHand);
+                const handDist = Math.sqrt(
+                    Math.pow(leftPos.x - rightPos.x, 2) +
+                    Math.pow(leftPos.y - rightPos.y, 2)
+                );
+
+                // Both pinching = zoom
+                if (leftPinching && rightPinching) {
+                    if (lastTwoHandDist !== null) {
+                        const delta = (lastTwoHandDist - handDist) * 20;
+                        targetZoom = Math.max(4, Math.min(15, targetZoom + delta));
+                    }
+                    lastTwoHandDist = handDist;
+                    lastSpreadDist = null;
+                    modeIndicator.textContent = 'ZOOMING';
+                }
+                // Neither pinching = spread to explode
+                else if (!leftPinching && !rightPinching) {
+                    // Map hand distance to explode amount
+                    // hands close (0.2) = assembled, hands far (0.8) = exploded
+                    const normalizedDist = Math.max(0, Math.min(1, (handDist - 0.2) / 0.5));
+                    targetExplode = normalizedDist;
+
+                    explodeFill.style.width = (normalizedDist * 100) + '%';
+
+                    if (normalizedDist > 0.7) {
+                        modeIndicator.textContent = 'EXPLODED VIEW';
+                    } else if (normalizedDist > 0.3) {
+                        modeIndicator.textContent = 'OPENING...';
+                    } else {
+                        modeIndicator.textContent = 'ASSEMBLED';
+                    }
+
+                    lastTwoHandDist = null;
+                    lastPinchPos = null;
+                }
+                else {
+                    lastTwoHandDist = null;
+                }
+            }
+            // Single hand pinching = rotate
+            else if (leftPinching || rightPinching) {
+                const hand = leftPinching ? leftHand : rightHand;
+                const pos = getPinchCenter(hand);
+
+                if (lastPinchPos !== null) {
+                    const deltaX = (pos.x - lastPinchPos.x) * 6;
+                    const deltaY = (pos.y - lastPinchPos.y) * 6;
+                    targetRotY -= deltaX;
+                    targetRotX += deltaY;
+                }
+
+                lastPinchPos = pos;
+                lastTwoHandDist = null;
+                modeIndicator.textContent = 'ROTATING';
+            }
+            // No pinch with one hand
+            else if (leftHand || rightHand) {
+                lastPinchPos = null;
+                lastTwoHandDist = null;
+                if (explodeAmount > 0.3) {
+                    modeIndicator.textContent = 'EXPLODED VIEW';
+                } else {
+                    modeIndicator.textContent = 'POINT TO EXPLORE';
+                }
+            }
+            // No hands
+            else {
+                lastPinchPos = null;
+                lastTwoHandDist = null;
+                lastSpreadDist = null;
+            }
+        }
+
         initScene();
         animate();
         initHandTracking();
